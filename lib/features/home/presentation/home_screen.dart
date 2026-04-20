@@ -208,9 +208,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final accessToken = await _kakaoAuthService.signIn();
       final session = await ref.read(marketApiClientProvider).authenticateWithKakao(accessToken);
       await _applySession(session.token, session.profile, needsOnboarding: session.isNewUser);
-    } catch (error) {
+    } catch (error, stack) {
       if (!mounted) return;
-      _showSnackBar(toUserMessage(error, fallback: '카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.'));
+      _showSnackBar('ERR: ${error.runtimeType}: $error\n$stack'.substring(0, 200.clamp(0, 'ERR: ${error.runtimeType}: $error\n$stack'.length)));
     }
   }
 
@@ -267,7 +267,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _applySession(String token, UserProfile profile, {required bool needsOnboarding}) async {
-    await SessionStorage.saveSessionToken(token);
     if (!mounted) return;
     setState(() {
       _sessionToken = token;
@@ -275,6 +274,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       _needsOnboarding = needsOnboarding;
       _isRestoringSession = false;
     });
+    try {
+      await SessionStorage.saveSessionToken(token);
+    } catch (_) {}
     await _loadOrders();
     await _loadWardrobe();
     await _loadMyProducts();
