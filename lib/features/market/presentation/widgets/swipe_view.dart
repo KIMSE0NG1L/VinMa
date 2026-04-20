@@ -1,21 +1,24 @@
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/widgets/vinma_image.dart';
 import '../../domain/product.dart';
 
 class SwipeView extends StatefulWidget {
   const SwipeView({
     required this.products,
     required this.onLike,
+    required this.onPass,
     required this.onAddToCart,
     super.key,
   });
 
   final List<Product> products;
-  final ValueChanged<int> onLike;
+  final Future<bool> Function(String productId) onLike;
+  final Future<bool> Function(String productId) onPass;
   final ValueChanged<Product> onAddToCart;
 
   @override
@@ -28,27 +31,48 @@ class _SwipeViewState extends State<SwipeView> {
   int _index = 0;
   Offset _dragOffset = Offset.zero;
 
+  bool get _isDone => _index >= widget.products.length;
+
   Product? get _currentProduct {
-    if (widget.products.isEmpty) {
+    if (widget.products.isEmpty || _isDone) {
       return null;
     }
 
-    return widget.products[_index % widget.products.length];
+    return widget.products[_index];
   }
 
   @override
   Widget build(BuildContext context) {
     final product = _currentProduct;
 
-    if (product == null) {
+    if (widget.products.isEmpty) {
       return const Center(child: Text('표시할 상품이 없습니다.'));
     }
 
+    if (_isDone) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('모든 상품을 확인했습니다.', style: TextStyle(fontSize: 16)),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => setState(() => _index = 0),
+              child: const Text('처음부터 다시 보기'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final nonNullProduct = product!;
     final currency = NumberFormat.currency(
       locale: 'ko_KR',
       symbol: '₩',
       decimalDigits: 0,
-    ).format(product.price);
+    ).format(nonNullProduct.price);
     final width = MediaQuery.sizeOf(context).width;
     final rotation = (_dragOffset.dx / width).clamp(-0.18, 0.18);
     final likeOpacity = (_dragOffset.dx / _swipeThreshold).clamp(0.0, 1.0);
@@ -78,7 +102,7 @@ class _SwipeViewState extends State<SwipeView> {
           onPanUpdate: (details) {
             setState(() => _dragOffset += details.delta);
           },
-          onPanEnd: (_) => _handlePanEnd(product),
+          onPanEnd: (_) => unawaited(_handlePanEnd(nonNullProduct)),
           child: AnimatedContainer(
             duration: _dragOffset == Offset.zero
                 ? const Duration(milliseconds: 180)
@@ -90,7 +114,7 @@ class _SwipeViewState extends State<SwipeView> {
             transformAlignment: Alignment.center,
             child: Stack(
               children: [
-                _SwipeProductCard(product: product, currency: currency),
+                _SwipeProductCard(product: nonNullProduct, currency: currency),
                 Positioned(
                   top: 24,
                   left: 24,
@@ -120,7 +144,7 @@ class _SwipeViewState extends State<SwipeView> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _pass,
+                onPressed: () => unawaited(_pass()),
                 icon: const Icon(Icons.close),
                 label: const Text('패스'),
               ),
@@ -129,7 +153,7 @@ class _SwipeViewState extends State<SwipeView> {
             Expanded(
               child: FilledButton.icon(
                 onPressed: () {
-                  widget.onAddToCart(product);
+                  widget.onAddToCart(nonNullProduct);
                   _next();
                 },
                 icon: const Icon(Icons.shopping_bag_outlined),
@@ -139,7 +163,7 @@ class _SwipeViewState extends State<SwipeView> {
             const SizedBox(width: 10),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () => _like(product),
+                onPressed: () => unawaited(_like(nonNullProduct)),
                 icon: const Icon(Icons.favorite_border),
                 label: const Text('관심'),
               ),
@@ -150,26 +174,46 @@ class _SwipeViewState extends State<SwipeView> {
     );
   }
 
-  void _handlePanEnd(Product product) {
+  Future<void> _handlePanEnd(Product product) async {
     if (_dragOffset.dx > _swipeThreshold) {
-      _like(product);
+      await _like(product);
       return;
     }
 
     if (_dragOffset.dx < -_swipeThreshold) {
-      _pass();
+      await _pass();
       return;
     }
 
     setState(() => _dragOffset = Offset.zero);
   }
 
-  void _like(Product product) {
-    widget.onLike(product.id);
-    _next();
+  Future<void> _like(Product product) async {
+    final success = await widget.onLike(product.id);
+    if (!mounted) {
+      return;
+    }
+    if (success) {
+      _next();
+    } else {
+      setState(() => _dragOffset = Offset.zero);
+    }
   }
 
-  void _pass() {
+  Future<void> _pass() async {
+    final product = _currentProduct;
+    if (product != null) {
+      final success = await widget.onPass(product.id);
+      if (!mounted) {
+        return;
+      }
+      if (success) {
+        _next();
+      } else {
+        setState(() => _dragOffset = Offset.zero);
+      }
+      return;
+    }
     _next();
   }
 
@@ -196,13 +240,11 @@ class _SwipeProductCard extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 3 / 4,
-            child: CachedNetworkImage(
-              imageUrl: product.imageUrl,
+            child: VinMaImage(
+              url: product.imageUrl,
               fit: BoxFit.cover,
-              placeholder: (context, url) =>
-                  ColoredBox(color: Colors.grey.shade200),
-              errorWidget: (context, url, error) =>
-                  const Icon(Icons.image_not_supported_outlined),
+              placeholder: ColoredBox(color: Colors.grey.shade200),
+              error: const Icon(Icons.image_not_supported_outlined),
             ),
           ),
           Padding(

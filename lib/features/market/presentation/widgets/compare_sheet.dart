@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/widgets/vinma_image.dart';
 import '../../domain/product.dart';
 
 class CompareSheet extends StatelessWidget {
@@ -13,7 +13,7 @@ class CompareSheet extends StatelessWidget {
   });
 
   final List<Product> products;
-  final ValueChanged<int> onRemove;
+  final ValueChanged<String> onRemove;
   final ValueChanged<Product> onAddToCart;
 
   @override
@@ -73,13 +73,15 @@ class CompareSheet extends StatelessWidget {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          CachedNetworkImage(
-                            imageUrl: product.imageUrl,
+                          VinMaImage(
+                            url: product.imageUrl,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                ColoredBox(color: Colors.grey.shade200),
-                            errorWidget: (context, url, error) =>
-                                const Icon(Icons.image_not_supported_outlined),
+                            placeholder: ColoredBox(
+                              color: Colors.grey.shade200,
+                            ),
+                            error: const Icon(
+                              Icons.image_not_supported_outlined,
+                            ),
                           ),
                           Positioned(
                             right: 6,

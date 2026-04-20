@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/widgets/vinma_image.dart';
 import '../../domain/product.dart';
 
 class RecentlyViewedStrip extends StatelessWidget {
@@ -58,13 +58,15 @@ class RecentlyViewedStrip extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         child: AspectRatio(
                           aspectRatio: 1,
-                          child: CachedNetworkImage(
-                            imageUrl: product.imageUrl,
+                          child: VinMaImage(
+                            url: product.imageUrl,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                ColoredBox(color: Colors.grey.shade200),
-                            errorWidget: (context, url, error) =>
-                                const Icon(Icons.image_not_supported_outlined),
+                            placeholder: ColoredBox(
+                              color: Colors.grey.shade200,
+                            ),
+                            error: const Icon(
+                              Icons.image_not_supported_outlined,
+                            ),
                           ),
                         ),
                       ),

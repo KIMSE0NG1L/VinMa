@@ -3,6 +3,20 @@ import 'package:intl/intl.dart';
 
 import '../../domain/product.dart';
 
+class CheckoutDraft {
+  const CheckoutDraft({
+    required this.receiverName,
+    required this.phone,
+    required this.address,
+    this.message,
+  });
+
+  final String receiverName;
+  final String phone;
+  final String address;
+  final String? message;
+}
+
 class CheckoutSheet extends StatefulWidget {
   const CheckoutSheet({
     required this.products,
@@ -11,7 +25,7 @@ class CheckoutSheet extends StatefulWidget {
   });
 
   final List<Product> products;
-  final ValueChanged<String> onComplete;
+  final Future<String> Function(CheckoutDraft draft) onComplete;
 
   @override
   State<CheckoutSheet> createState() => _CheckoutSheetState();
@@ -24,6 +38,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
   final _messageController = TextEditingController();
   int _step = 0;
   String _paymentMethod = '카드 결제';
+  bool _isSubmitting = false;
 
   int get _total =>
       widget.products.fold(0, (sum, product) => sum + product.price);
@@ -81,7 +96,7 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
               onChanged: () => setState(() {}),
             ),
           if (_step == 1) ...[
-            for (final method in const ['카드 결제', '계좌이체', '간편결제'])
+            for (final method in const ['카드 결제', '계좌 이체', '간편 결제'])
               Card(
                 child: ListTile(
                   leading: const Icon(Icons.credit_card),
@@ -130,8 +145,14 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
           const SizedBox(height: 24),
           if (_step < 2)
             FilledButton(
-              onPressed: _canContinue ? _next : null,
-              child: Text(_step == 0 ? '다음' : '결제하기'),
+              onPressed: _isSubmitting || !_canContinue ? null : _next,
+              child: Text(
+                _isSubmitting
+                    ? '처리 중...'
+                    : _step == 0
+                    ? '다음'
+                    : '결제하기',
+              ),
             ),
         ],
       ),
@@ -148,15 +169,34 @@ class _CheckoutSheetState extends State<CheckoutSheet> {
     return widget.products.isNotEmpty;
   }
 
-  void _next() {
+  Future<void> _next() async {
     if (_step == 0) {
       setState(() => _step = 1);
       return;
     }
 
-    final orderId = 'ORD-${DateTime.now().millisecondsSinceEpoch}';
-    setState(() => _step = 2);
-    widget.onComplete(orderId);
+    setState(() => _isSubmitting = true);
+    try {
+      final orderId = await widget.onComplete(
+        CheckoutDraft(
+          receiverName: _nameController.text.trim(),
+          phone: _phoneController.text.trim(),
+          address: _addressController.text.trim(),
+          message: _messageController.text.trim().isEmpty
+              ? null
+              : _messageController.text.trim(),
+        ),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _step = 2);
+      Navigator.of(context).pop(orderId);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 }
 
